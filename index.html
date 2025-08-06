@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grow a Garden</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <style>
+        :root {
+            --color-common: #9ca3af;
+            --color-uncommon: #22c55e;
+            --color-rare: #3b82f6;
+            --color-legendary: #f59e0b;
+            --color-mythical: #a855f7;
+        }
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #5d925d;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+        .game-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            padding: 1rem;
+            justify-content: center;
+        }
+        .left-panel, .right-panel {
+            flex: 1;
+            min-width: 350px;
+            max-width: 600px;
+        }
+        .panel {
+            background-color: #8c5e3c;
+            border: 4px solid #5a3d2b;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+        .panel-title {
+            font-size: 1.25rem;
+            color: #fde68a;
+            text-align: center;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px #5a3d2b;
+        }
+        #hud {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            text-align: center;
+            font-size: 1.5rem;
+            padding: 0.5rem;
+            background-color: #3e603e;
+            border-radius: 8px;
+            border: 2px solid #2c422c;
+        }
+        #garden-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-top: 1rem;
+            position: relative;
+        }
+        .plot {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background-color: #a1662f;
+            border: 3px solid #754c24;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+        .plot:hover { background-color: #b97d41; }
+        .plot.shovel-active:hover { background-color: #c75d5d; border-color: #8f3a3a; }
+        .plot .lock-icon {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            font-size: 1rem;
+            opacity: 0.7;
+        }
+        #hotbar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-top: 1rem;
+            padding: 10px;
+            background-color: #4a4e69;
+            border-radius: 8px;
+        }
+        .hotbar-slot {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            background-color: #22223b;
+            border: 2px solid #9a8c98;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            position: relative;
+        }
+        .hotbar-slot.active {
+            background-color: #fca311;
+            border-color: #ffffff;
+            box-shadow: 0 0 15px #fca311;
+        }
+        .hotbar-slot .item-count {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 0.8rem;
+            background-color: rgba(0,0,0,0.7);
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+        .shop-item, .inventory-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            font-size: 0.8rem;
+        }
+        .shop-item .stock-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .shop-item .no-stock-text { color: #ef4444; font-weight: bold; }
+        .action-button, .shop-item button, .inventory-item button {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #fca311;
+            color: #14213d;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.6rem;
+            box-shadow: 0 2px #c87a00;
+            transition: all 0.1s;
+        }
+        .action-button:hover, .shop-item button:hover, .inventory-item button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px #c87a00;
+        }
+        .action-button:active, .shop-item button:active, .inventory-item button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px #c87a00;
+        }
+        .shop-item button:disabled { background-color: #6c757d; cursor: not-allowed; box-shadow: 0 2px #495057; transform: none; }
+        .inventory-buttons { display: flex; gap: 0.5rem; }
+        #tooltip {
+            position: absolute;
+            background-color: rgba(0,0,0,0.85);
+            border: 2px solid #fff;
+            border-radius: 8px;
+            padding: 0.75rem;
+            z-index: 100;
+            pointer-events: none;
+            display: none;
+            font-size: 0.8rem;
+            text-align: left;
+            max-width: 250px;
+        }
+        #modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        #modal {
+            background-color: #8c5e3c;
+            border: 4px solid #5a3d2b;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        #modal-content {
+            text-align: left;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            max-height: 60vh;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.2);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        #modal-buttons { margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center; }
+        #modal button { font-size: 1rem; padding: 0.5rem 1.5rem; }
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #FFF;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-800">
+
+    <div class="game-container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <div class="panel">
+                <div id="hud">
+                    <span id="coins-display"></span>
+                    <button id="ask-sage-button" class="action-button" title="Ask the Garden Sage for advice">✨ Sage</button>
+                </div>
+                <div id="garden-grid"></div>
+            </div>
+            <div id="hotbar"></div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div id="seed-shop" class="panel">
+                <h2 class="panel-title">Seed Shop</h2>
+                <div id="seed-shop-items"></div>
+            </div>
+            <div id="inventory" class="panel">
+                <h2 class="panel-title">Your Fruits</h2>
+                <div id="inventory-items"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating UI Elements -->
+    <div id="tooltip"></div>
+    <div id="modal-overlay">
+        <div id="modal">
+            <p id="modal-text"></p>
+            <div id="modal-content"></div>
+            <div id="modal-buttons">
+                <button id="modal-yes" class="action-button" style="background-color: #dc2626; display:none;">Yes</button>
+                <button id="modal-no" class="action-button">Close</button>
+            </div>
+        </div>
+    </div>
+    <div id="notifications"></div>
+
+    <script>
+        const TILE_COUNT = 25;
+        const HOTBAR_SLOTS = 5;
+        const SHOP_RESTOCK_INTERVAL = 150000; // 2.5 minutes
+
+        // --- Game Data ---
+        const rarityData = {
+            'Common': { color: '#9ca3af', name: 'Common' },
+            'Uncommon': { color: '#22c55e', name: 'Uncommon' },
+            'Rare': { color: '#3b82f6', name: 'Rare' },
+            'Legendary': { color: '#f59e0b', name: 'Legendary' },
+            'Mythical': { color: '#a855f7', name: 'Mythical' },
+        };
+
+        const plantData = {
+            'carrot':      { name: 'Carrot',      emoji: '🥕', rarity: 'Common',    growthTime: 10, price: 12,   sellValue: 18,   stages: ['🌱', '🌿', '🥕'] },
+            'strawberry':  { name: 'Strawberry',  emoji: '🍓', rarity: 'Common',    growthTime: 15, price: 20,   sellValue: 30,   stages: ['🌱', '🌸', '🍓'] },
+            'corn':        { name: 'Corn',        emoji: '🌽', rarity: 'Uncommon',  growthTime: 30, price: 45,   sellValue: 70,   stages: ['🌱', '🌿', '🌽'] },
+            'apple':       { name: 'Apple',       emoji: '🍎', rarity: 'Uncommon',  growthTime: 40, price: 65,   sellValue: 100,  stages: ['🌱', '🌳', '🍎'] },
+            'watermelon':  { name: 'Watermelon',  emoji: '🍉', rarity: 'Rare',      growthTime: 60, price: 120,  sellValue: 200,  stages: ['🌱', '🌿', '🍉'] },
+            'pineapple':   { name: 'Pineapple',   emoji: '🍍', rarity: 'Rare',      growthTime: 75, price: 160,  sellValue: 275,  stages: ['🌱', '🌿', '🍍'] },
+            'banana':      { name: 'Banana',      emoji: '🍌', rarity: 'Legendary', growthTime: 120, price: 350,  sellValue: 600,  stages: ['🌱', '🌳', '🍌'] },
+            'coconut':     { name: 'Coconut',     emoji: '🥥', rarity: 'Legendary', growthTime: 150, price: 500,  sellValue: 900,  stages: ['🌱', '🌴', '🥥'] },
+            'mango':       { name: 'Mango',       emoji: '🥭', rarity: 'Mythical',  growthTime: 240, price: 1200, sellValue: 2500, stages: ['🌱', '🌳', '🥭'] },
+            'grape':       { name: 'Grape',       emoji: '🍇', rarity: 'Mythical',  growthTime: 300, price: 2000, sellValue: 4500, stages: ['🌱', '🌿', '🍇'] }
+        };
+
+        const shopData = {
+            'carrot':     { stock: 0, maxStock: 5, restockChance: 1.0, multiStockChance: [1, 0.8, 0.6, 0.4, 0.2] },
+            'strawberry': { stock: 0, maxStock: 4, restockChance: 0.9, multiStockChance: [1, 0.7, 0.5, 0.3] },
+            'corn':       { stock: 0, maxStock: 3, restockChance: 0.7, multiStockChance: [1, 0.6, 0.4] },
+            'apple':      { stock: 0, maxStock: 2, restockChance: 0.6, multiStockChance: [1, 0.5] },
+            'watermelon': { stock: 0, maxStock: 2, restockChance: 0.4, multiStockChance: [1, 0.3] },
+            'pineapple':  { stock: 0, maxStock: 2, restockChance: 0.35, multiStockChance: [1, 0.25] },
+            'banana':     { stock: 0, maxStock: 2, restockChance: 0.2, multiStockChance: [1, 0.15] },
+            'coconut':    { stock: 0, maxStock: 2, restockChance: 0.15, multiStockChance: [1, 0.1] },
+            'mango':      { stock: 0, maxStock: 2, restockChance: 0.08, multiStockChance: [1, 0.05] },
+            'grape':      { stock: 0, maxStock: 2, restockChance: 0.05, multiStockChance: [1, 0.02] },
+        };
+        
+        let gameState = {
+            coins: 100,
+            gardenPlots: Array(TILE_COUNT).fill(null),
+            hotbar: [ { type: 'tool', name: 'shovel', emoji: '⛏️' }, null, null, null, null ],
+            inventory: {},
+            activeSlot: 0
+        };
+        Object.keys(plantData).forEach(key => gameState.inventory[key] = 0);
+
+        const dom = {
+            gardenGrid: document.getElementById('garden-grid'),
+            hotbar: document.getElementById('hotbar'),
+            coinsDisplay: document.getElementById('coins-display'),
+            seedShopItems: document.getElementById('seed-shop-items'),
+            inventoryItems: document.getElementById('inventory-items'),
+            notifications: document.getElementById('notifications'),
+            tooltip: document.getElementById('tooltip'),
+            modal: {
+                overlay: document.getElementById('modal-overlay'),
+                text: document.getElementById('modal-text'),
+                content: document.getElementById('modal-content'),
+                yes: document.getElementById('modal-yes'),
+                no: document.getElementById('modal-no'),
+            },
+            sageButton: document.getElementById('ask-sage-button'),
+        };
+
+        let soundsReady = false;
+        const sounds = {
+            plant: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination(),
+            harvest: new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.2, release: 0.3 } }).toDestination(),
+            sell: new Tone.MetalSynth({ frequency: 200, envelope: { attack: 0.001, decay: 0.1, release: 0.05 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000 }).toDestination(),
+            error: new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination(),
+            shovel: new Tone.NoiseSynth({ noise: { type: 'brown' }, envelope: { attack: 0.01, decay: 0.15, sustain: 0, release: 0.1 } }).toDestination()
+        };
+        sounds.sell.volume.value = -10;
+
+        // --- RENDER FUNCTIONS ---
+        function renderAll() {
+            renderGarden();
+            renderHotbar();
+            renderHUD();
+            renderShop();
+            renderInventory();
+        }
+
+        function renderGarden() {
+            dom.gardenGrid.innerHTML = '';
+            gameState.gardenPlots.forEach((plot, index) => {
+                const plotEl = document.createElement('div');
+                plotEl.classList.add('plot');
+                plotEl.dataset.index = index;
+                if (plot) {
+                    plotEl.textContent = plantData[plot.name].stages[plot.stage];
+                    if (plot.locked) {
+                        plotEl.innerHTML += `<span class="lock-icon">🔒</span>`;
+                    }
+                }
+                if (gameState.activeSlot === 0) plotEl.classList.add('shovel-active');
+                dom.gardenGrid.appendChild(plotEl);
+            });
+        }
+
+        function renderHotbar() {
+            dom.hotbar.innerHTML = '';
+            gameState.hotbar.forEach((item, index) => {
+                const slotEl = document.createElement('div');
+                slotEl.classList.add('hotbar-slot');
+                slotEl.dataset.index = index;
+                if (index === gameState.activeSlot) slotEl.classList.add('active');
+                if (item) {
+                    slotEl.textContent = item.emoji;
+                    if (item.type === 'seed') {
+                        const countEl = document.createElement('span');
+                        countEl.classList.add('item-count');
+                        countEl.textContent = item.count;
+                        slotEl.appendChild(countEl);
+                    }
+                }
+                dom.hotbar.appendChild(slotEl);
+            });
+        }
+
+        function renderHUD() {
+            dom.coinsDisplay.innerHTML = `Coins: ${gameState.coins} 🪙`;
+        }
+        
+        function renderShop() {
+            dom.seedShopItems.innerHTML = '';
+            Object.keys(shopData).forEach(key => {
+                const pData = plantData[key];
+                const sData = shopData[key];
+                const rData = rarityData[pData.rarity];
+                const itemEl = document.createElement('div');
+                itemEl.classList.add('shop-item');
+                
+                const stockCountColor = sData.stock > 0 ? 'text-green-400' : 'text-red-500';
+                const noStockMessage = sData.stock === 0 ? `<span class="no-stock-text">No Stock</span>` : '';
+
+                itemEl.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span>${pData.emoji} ${pData.name}</span>
+                        <span style="color: ${rData.color}; font-size: 0.7rem;">(${rData.name})</span>
+                    </div>
+                    <div class="stock-status">
+                        ${noStockMessage}
+                        <span>${pData.price}🪙</span>
+                        <button class="action-button" data-seed="${key}">Buy <span class="${stockCountColor}">(${sData.stock})</span></button>
+                    </div>
+                `;
+                dom.seedShopItems.appendChild(itemEl);
+                const button = itemEl.querySelector('button');
+                if (sData.stock === 0 || gameState.coins < pData.price) {
+                    button.disabled = true;
+                }
+            });
+        }
+
+        function renderInventory() {
+            dom.inventoryItems.innerHTML = '';
+            Object.keys(gameState.inventory).forEach(key => {
+                const count = gameState.inventory[key];
+                if (count > 0) {
+                    const pData = plantData[key];
+                    const itemEl = document.createElement('div');
+                    itemEl.classList.add('inventory-item');
+                    itemEl.innerHTML = `
+                        <span>${pData.emoji} ${pData.name} (x${count})</span>
+                        <div class="inventory-buttons">
+                            <button class="action-button" data-lore="${key}" title="Get AI-generated lore for this fruit">✨ Lore</button>
+                            <button class="action-button" data-value="${key}">Val</button>
+                            <button class="action-button" data-fruit="${key}">Sell (${pData.sellValue}🪙)</button>
+                        </div>
+                    `;
+                    dom.inventoryItems.appendChild(itemEl);
+                }
+            });
+        }
+
+        // --- UI & MODAL ---
+        function showNotification(message, isError = false) {
+            dom.notifications.textContent = message;
+            dom.notifications.style.color = isError ? '#ff7b7b' : '#a7f3d0';
+            dom.notifications.classList.add('show');
+            setTimeout(() => dom.notifications.classList.remove('show'), 2000);
+        }
+
+        function showTooltip(plotEl, plotData) {
+            const pData = plantData[plotData.name];
+            const rData = rarityData[pData.rarity];
+            dom.tooltip.style.display = 'block';
+            const rect = plotEl.getBoundingClientRect();
+            dom.tooltip.style.left = `${rect.left + window.scrollX}px`;
+            dom.tooltip.style.top = `${rect.top + window.scrollY - dom.tooltip.offsetHeight - 10}px`;
+            dom.tooltip.innerHTML = `
+                <div>${pData.name}</div>
+                <div style="color: ${rData.color};">${rData.name}</div>
+                <div>Mutations: None</div>
+            `;
+        }
+
+        function hideTooltip() { dom.tooltip.style.display = 'none'; }
+
+        function showModal(title, content, showYesNo = false) {
+            dom.modal.text.textContent = title;
+            dom.modal.content.innerHTML = content;
+            dom.modal.overlay.style.display = 'flex';
+            dom.modal.yes.style.display = showYesNo ? 'inline-block' : 'none';
+            dom.modal.no.textContent = showYesNo ? 'No' : 'Close';
+        }
+
+        // --- GEMINI API ---
+        async function callGemini(prompt, retries = 3, delay = 1000) {
+            showModal("✨ Thinking...", '<div class="loader"></div>');
+            const apiKey = ""; // Handled by the environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            try {
+                const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 429 && retries > 0) { // Throttling
+                        await new Promise(res => setTimeout(res, delay));
+                        return callGemini(prompt, retries - 1, delay * 2); // Exponential backoff
+                    }
+                    throw new Error(`API Error: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    return text;
+                } else {
+                    throw new Error("Invalid response from API.");
+                }
+            } catch (error) {
+                console.error("Gemini API call failed:", error);
+                return `Sorry, the magic failed. ${error.message}`;
+            }
+        }
+
+        async function askTheSage() {
+            const inventoryString = Object.entries(gameState.inventory)
+                .filter(([, count]) => count > 0)
+                .map(([name, count]) => `${count} ${name}(s)`)
+                .join(', ') || 'nothing';
+
+            const plantsString = gameState.gardenPlots
+                .filter(p => p !== null)
+                .map(p => `${p.name} (stage ${p.stage + 1})`)
+                .join(', ') || 'nothing planted';
+
+            const prompt = `
+                You are the Garden Sage, a wise and helpful advisor in the game "Grow a Garden".
+                Give the player clear, strategic advice based on their current situation. Be encouraging and brief.
+                The goal is to make the most money.
+                
+                Current situation:
+                - Coins: ${gameState.coins}
+                - Fruits in inventory: ${inventoryString}
+                - Plants in garden: ${plantsString}
+
+                Give me some advice.
+            `;
+            const advice = await callGemini(prompt);
+            showModal("✨ The Garden Sage Says...", advice);
+        }
+
+        async function getFruitLore(fruitName) {
+            const pData = plantData[fruitName];
+            const prompt = `
+                You are a creative encyclopedia author for the game "Grow a Garden".
+                Write a short, fun, and imaginative encyclopedia entry for the following fruit.
+                Include a fun fact or a quirky detail. Make it sound engaging for a game.
+
+                Fruit Name: ${pData.name}
+                Rarity: ${pData.rarity}
+            `;
+            const lore = await callGemini(prompt);
+            showModal(`✨ Lore: ${pData.name}`, lore);
+        }
+
+
+        // --- GAME LOGIC ---
+        function buySeed(seedName) {
+            const pData = plantData[seedName];
+            const sData = shopData[seedName];
+            if (gameState.coins < pData.price) { showNotification("Not enough coins!", true); sounds.error.triggerAttackRelease('C2', '8n'); return; }
+            if (sData.stock <= 0) { showNotification("Out of stock!", true); sounds.error.triggerAttackRelease('C2', '8n'); return; }
+            let added = false;
+            for (let i = 1; i < HOTBAR_SLOTS; i++) {
+                if (gameState.hotbar[i] && gameState.hotbar[i].name === seedName) { gameState.hotbar[i].count++; added = true; break; }
+            }
+            if (!added) {
+                for (let i = 1; i < HOTBAR_SLOTS; i++) {
+                    if (!gameState.hotbar[i]) { gameState.hotbar[i] = { type: 'seed', name: seedName, emoji: pData.emoji, count: 1 }; added = true; break; }
+                }
+            }
+            if (added) { gameState.coins -= pData.price; sData.stock--; sounds.sell.triggerAttackRelease('C4', '8n'); renderAll(); } 
+            else { showNotification("Hotbar is full!", true); sounds.error.triggerAttackRelease('C2', '8n'); }
+        }
+        
+        function handlePlotClick(index) {
+            const activeItem = gameState.hotbar[gameState.activeSlot];
+            const plot = gameState.gardenPlots[index];
+
+            if (activeItem?.name === 'shovel') {
+                if (plot) {
+                    dom.modal.text.textContent = `Delete the ${plantData[plot.name].name}?`;
+                    dom.modal.content.innerHTML = '';
+                    dom.modal.overlay.style.display = 'flex';
+                    dom.modal.yes.style.display = 'inline-block';
+                    dom.modal.no.textContent = 'No';
+                    
+                    const confirmDeletion = () => {
+                        gameState.gardenPlots[index] = null;
+                        sounds.shovel.triggerAttackRelease('8n');
+                        renderGarden();
+                        dom.modal.overlay.style.display = 'none';
+                    };
+                    
+                    const newYes = dom.modal.yes.cloneNode(true);
+                    dom.modal.yes.parentNode.replaceChild(newYes, dom.modal.yes);
+                    dom.modal.yes = newYes;
+                    dom.modal.yes.addEventListener('click', confirmDeletion, { once: true });
+                }
+                return;
+            }
+
+            if (plot?.locked) {
+                showNotification("This plant is locked!", true);
+                sounds.error.triggerAttackRelease('C2', '8n');
+                return;
+            }
+            
+            if (activeItem?.type === 'seed') {
+                if (gameState.gardenPlots[index]) {
+                    showNotification("This plot is already occupied!", true);
+                    sounds.error.triggerAttackRelease('C2', '8n');
+                } else {
+                    const seedName = activeItem.name;
+                    gameState.gardenPlots[index] = { name: seedName, stage: 0, growthTimer: plantData[seedName].growthTime, locked: false };
+                    sounds.plant.triggerAttackRelease('C4', '8n');
+                    activeItem.count--;
+                    if (activeItem.count === 0) gameState.hotbar[gameState.activeSlot] = null;
+                    renderAll();
+                }
+            } else if (!activeItem || activeItem.type === 'tool') {
+                if (plot && plot.stage === plantData[plot.name].stages.length - 1) {
+                    gameState.inventory[plot.name]++;
+                    gameState.gardenPlots[index] = null;
+                    sounds.harvest.triggerAttackRelease('E5', '8n');
+                    renderAll();
+                }
+            }
+        }
+
+        function sellFruit(fruitName) {
+            if (gameState.inventory[fruitName] > 0) {
+                gameState.inventory[fruitName]--;
+                gameState.coins += plantData[fruitName].sellValue;
+                sounds.sell.triggerAttackRelease('G5', '8n');
+                renderAll();
+            }
+        }
+
+        function updateShopStock() {
+            Object.keys(shopData).forEach(key => {
+                const sData = shopData[key];
+                if (Math.random() < sData.restockChance) {
+                    let stockAmount = 0;
+                    for (const chance of sData.multiStockChance) {
+                        if (Math.random() < chance) stockAmount++;
+                        else break;
+                    }
+                    sData.stock = stockAmount;
+                } else {
+                    sData.stock = 0;
+                }
+            });
+            renderShop();
+        }
+
+        function updatePlantGrowth() {
+            let needsRender = false;
+            gameState.gardenPlots.forEach(plot => {
+                if (plot && plot.stage < plantData[plot.name].stages.length - 1) {
+                    plot.growthTimer--;
+                    if (plot.growthTimer <= 0) {
+                        plot.stage++;
+                        plot.growthTimer = plantData[plot.name].growthTime;
+                        needsRender = true;
+                    }
+                }
+            });
+            if (needsRender) renderGarden();
+        }
+
+        // --- Event Listeners ---
+        dom.hotbar.addEventListener('click', e => {
+            const slot = e.target.closest('.hotbar-slot');
+            if (slot) {
+                gameState.activeSlot = parseInt(slot.dataset.index);
+                renderHotbar();
+                renderGarden();
+            }
+        });
+
+        dom.gardenGrid.addEventListener('click', e => {
+            const plot = e.target.closest('.plot');
+            if (plot) handlePlotClick(parseInt(plot.dataset.index));
+        });
+
+        dom.gardenGrid.addEventListener('mouseover', e => {
+            const plotEl = e.target.closest('.plot');
+            if (plotEl) {
+                const plotData = gameState.gardenPlots[parseInt(plotEl.dataset.index)];
+                if (plotData) showTooltip(plotEl, plotData);
+            }
+        });
+        dom.gardenGrid.addEventListener('mouseout', e => {
+            if (e.target.closest('.plot')) hideTooltip();
+        });
+
+        dom.seedShopItems.addEventListener('click', e => {
+            const button = e.target.closest('button');
+            if (button?.dataset.seed) buySeed(button.dataset.seed);
+        });
+        
+        dom.inventoryItems.addEventListener('click', e => {
+            const button = e.target.closest('button');
+            if (!button) return;
+            if (button.dataset.fruit) sellFruit(button.dataset.fruit);
+            if (button.dataset.lore) getFruitLore(button.dataset.lore);
+            if (button.dataset.value) {
+                const fruitName = button.dataset.value;
+                const totalValue = gameState.inventory[fruitName] * plantData[fruitName].sellValue;
+                showNotification(`${gameState.inventory[fruitName]} ${plantData[fruitName].name} are worth ${totalValue}🪙`);
+            }
+        });
+
+        dom.sageButton.addEventListener('click', askTheSage);
+        dom.modal.no.addEventListener('click', () => dom.modal.overlay.style.display = 'none');
+
+        // --- Initialization ---
+        function init() {
+            document.body.addEventListener('click', () => {
+                if (!soundsReady) {
+                    Tone.start().catch(e => console.error("Could not start audio context:", e));
+                    soundsReady = true;
+                }
+            }, { once: true });
+            
+            updateShopStock();
+            renderAll();
+
+            setInterval(updatePlantGrowth, 1000);
+            setInterval(updateShopStock, SHOP_RESTOCK_INTERVAL);
+        }
+
+        init();
+    </script>
+</body>
+</html>
